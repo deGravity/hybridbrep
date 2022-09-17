@@ -22,7 +22,10 @@ dependencies:
   - ipykernel
   - eigen
   - occt>=7.6
+  - pythonocc-core>=7.6
   - cmake
+  - altair
+  - altair_saver
   - pybind11
   - pip:
     - pyrender

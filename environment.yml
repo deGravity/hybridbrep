@@ -27,6 +27,8 @@ dependencies:
   - altair
   - altair_saver
   - pybind11
+  - pip
   - pip:
     - pyrender
     - chamferdist
+    - git+https://github.com/degravity/automate.git@v1.0.1

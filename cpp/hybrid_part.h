@@ -1,5 +1,5 @@
-#ifndef IMPLICIT_PART_H_INCLUDED
-#define IMPLICIT_PART_H_INCLUDED
+#ifndef HYBRID_PART_H_INCLUDED
+#define HYBRID_PART_H_INCLUDED
 
 #include <Eigen/Core>
 #include <vector>
@@ -7,8 +7,8 @@
 
 namespace pspy {
 
-struct ImplicitPart {
-	ImplicitPart(
+struct HybridPart {
+	HybridPart(
 		const std::string& path, 
 		const int N, 
 		const int N_ref, 
@@ -39,16 +39,14 @@ struct ImplicitPart {
 	Eigen::MatrixXi face_to_face;
 	Eigen::MatrixXi face_to_loop;
 	Eigen::MatrixXi loop_to_edge;
+	Eigen::MatrixXi face_to_edge;
 	Eigen::MatrixXi edge_to_vertex;
 	Eigen::MatrixXi loop_to_vertex;
-
-	// Loops in order
-	std::vector<std::vector<int> > ordered_loop_edge;
-	std::vector<std::vector<bool> > ordered_loop_flipped;
 
 	// If a vertex is start, end, or neither relative to an edge
 	std::vector<bool> edge_to_vertex_is_start;
 	std::vector<bool> loop_to_edge_flipped;
+	std::vector<bool> face_to_edge_flipped;
 
 	// Surface and Curve Samples
 	std::vector<Eigen::MatrixXd> surface_bounds; // N_face x 2 x 2
@@ -65,4 +63,4 @@ struct ImplicitPart {
 
 }
 
-#endif // !IMPLICIT_PART_H_INCLUDED
+#endif // !HYBRID_PART_H_INCLUDED

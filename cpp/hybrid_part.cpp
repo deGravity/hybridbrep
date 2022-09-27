@@ -1,10 +1,10 @@
-#include "implicit_part.h"
+#include "hybrid_part.h"
 
 #include <body.h>
 
 namespace pspy {
 
-ImplicitPart::ImplicitPart(
+HybridPart::HybridPart(
 	const std::string& path, 
 	const int N,
 	const int N_ref,
@@ -51,16 +51,81 @@ ImplicitPart::ImplicitPart(
 	}
 
 	// Setup Node Data
-	const int SURF_PARAM_WIDTH = 11;
+	// Surface Data Format:
+	// [type] | [origin] [normal] [axis] [ref_dir] [radius] [minor_radius] [semi-angle]
+	// [    ] | [0:3]    [3:6]    [6:9]  [9:11]    [11]     [12]           [13]
+	// Another thought (maybe just on the learning / python side) is to pre-transform these
+	// using tanh or something similar to constrain the range in a reversible way. The big
+	// problem with this is then that the majority of the representable space is taken up
+	// by uncommon values
+	// Default values:
+	// plane: normal = N, axis = 0, ref_dir = x, radius = minor_radius = semi-angle = 0
+	// cylinder: normal = 0, axis= a, ref_dir = x, radius = minor_radius = r, semi_angle = 0
+	// cone: axis, ref_dir, radius = minor_radius, semi-angle = a
+	// sphere: axis, ref_dir, radius = minor_radius, semi-angle = 0
+	// torus: axis, ref_dir, radius
+	// Idea: let the unused direction be the cross product (y) direction
+	const int SURF_PARAM_WIDTH = 14;
 	face_surfaces.resize(n_faces);
 	face_surface_parameters.resize(n_faces, SURF_PARAM_WIDTH);
 	face_surface_parameters.setZero();
 	face_surface_flipped.resize(n_faces);
 	for (int i = 0; i < n_faces; ++i) {
 		face_surfaces[i] = topology.faces[i]->function;
-		for (int j = 0; j < topology.faces[i]->parameters.size(); ++j) {
-			face_surface_parameters(i, j) = topology.faces[i]->parameters[j];
+		switch (face_surfaces[i]) {
+			case SurfaceFunction::Plane:
+				for (int j = 0; j < 3; ++j) {
+					face_surface_parameters(i,0+j) = topology.faces[i]->parameters[0+j]; // origin [0:3]
+					face_surface_parameters(i,3+j) = topology.faces[i]->parameters[3+j]; // normal [3:6]
+				}
+				for (int j = 0; j < 2; ++j) {
+					face_surface_parameters(i,9+j) = topology.faces[i]->parameters[6+j]; // ref_dir (x) [9:11]
+				}
+				break;
+			case SurfaceFunction::Cylinder:
+				for (int j = 0; j < 3; ++j) {
+					face_surface_parameters(i,0+j) = topology.faces[i]->parameters[0+j]; // origin [0:3]
+					face_surface_parameters(i,6+j) = topology.faces[i]->parameters[3+j]; // axis [6:9]
+				}
+				for (int j = 0; j < 2; ++j) {
+					face_surface_parameters(i,9+j) = topology.faces[i]->parameters[6+j]; // ref_dir (x) [9:11]
+				}
+				face_surface_parameters(i,11) = topology.faces[i]->parameters[9]; // radius [11]
+				break;
+			case SurfaceFunction::Cone:
+				for (int j = 0; j < 3; ++j) {
+					face_surface_parameters(i,0+j) = topology.faces[i]->parameters[0+j]; // origin [0:3]
+					face_surface_parameters(i,6+j) = topology.faces[i]->parameters[3+j]; // axis [6:9]
+				}
+				for (int j = 0; j < 2; ++j) {
+					face_surface_parameters(i,9+j) = topology.faces[i]->parameters[6+j]; // ref_dir (x) [9:11]
+				}
+				face_surface_parameters(i,11) = topology.faces[i]->parameters[9]; // radius [11]
+				face_surface_parameters(i,13) = topology.faces[i]->parameters[10]; // semi-angle [13]
+				break;
+			case SurfaceFunction::Torus:
+				for (int j = 0; j < 3; ++j) {
+					face_surface_parameters(i,0+j) = topology.faces[i]->parameters[0+j]; // origin [0:3]
+					face_surface_parameters(i,6+j) = topology.faces[i]->parameters[3+j]; // axis [6:9]
+				}
+				for (int j = 0; j < 2; ++j) {
+					face_surface_parameters(i,9+j) = topology.faces[i]->parameters[6+j]; // ref_dir (x) [9:11]
+				}
+				face_surface_parameters(i,11) = topology.faces[i]->parameters[9]; // radius [11]
+				face_surface_parameters(i,12) = topology.faces[i]->parameters[10]; // minor-radius [12]
+				break;
+			case SurfaceFunction::Sphere:
+				for (int j = 0; j < 3; ++j) {
+					face_surface_parameters(i,0+j) = topology.faces[i]->parameters[0+j]; // origin [0:3]
+					face_surface_parameters(i,6+j) = topology.faces[i]->parameters[3+j]; // axis [6:9]
+				}
+				for (int j = 0; j < 2; ++j) {
+					face_surface_parameters(i,9+j) = topology.faces[i]->parameters[6+j]; // ref_dir (x) [9:11]
+				}
+				face_surface_parameters(i,11) = topology.faces[i]->parameters[9]; // radius [11]
+				break;
 		}
+
 		face_surface_flipped[i] = (int)(!topology.faces[i]->orientation);
 	}
 
@@ -69,7 +134,10 @@ ImplicitPart::ImplicitPart(
 		loop_types[i] = topology.loops[i]->_type;
 	}
 
-	const int CURVE_PARAM_WIDTH = 11;
+	// Cuve Parameter Format:
+	// [fn] | [origin] [direction] [axis] [x_dir] [radius] [minor radius]
+	// [  ] | [0:3   ] [3:6]       [6:9]  [9:11 ] [11]     [12]
+	const int CURVE_PARAM_WIDTH = 13;
 	edge_curves.resize(n_edges);
 	edge_curve_parameters.resize(n_edges, CURVE_PARAM_WIDTH);
 	edge_curve_parameters.setZero();
@@ -77,6 +145,37 @@ ImplicitPart::ImplicitPart(
 	edge_curve_flipped.resize(n_edges);
 	for (int i = 0; i < n_edges; ++i) {
 		edge_curves[i] = topology.edges[i]->function;
+
+		switch (edge_curves[i]) {
+			case CurveFunction::Line:
+				for (int j = 0; j < 3; ++j) {
+					edge_curve_parameters(i,0+j) = topology.edges[i]->parameters[0+j]; // origin [0:3]
+					edge_curve_parameters(i,3+j) = topology.edges[i]->parameters[3+j]; // dir [3:6]
+				}
+				break;
+			case CurveFunction::Circle:
+				for (int j = 0; j < 3; ++j) {
+					edge_curve_parameters(i,0+j) = topology.edges[i]->parameters[0+j]; // origin [0:3]
+					edge_curve_parameters(i,6+j) = topology.edges[i]->parameters[3+j]; // axis [6:9]
+				}
+				for (int j = 0; j < 2; ++j) {
+					edge_curve_parameters(i,9+j) = topology.edges[i]->parameters[6+j]; // ref_dir (x) [9:11]
+				}
+				edge_curve_parameters(i,11) = topology.edges[i]->parameters[9]; // radius [11]
+				break;
+			case CurveFunction::Ellipse:
+				for (int j = 0; j < 3; ++j) {
+					edge_curve_parameters(i,0+j) = topology.edges[i]->parameters[0+j]; // origin [0:3]
+					edge_curve_parameters(i,6+j) = topology.edges[i]->parameters[3+j]; // axis [6:9]
+				}
+				for (int j = 0; j < 2; ++j) {
+					edge_curve_parameters(i,9+j) = topology.edges[i]->parameters[6+j]; // ref_dir (x) [9:11]
+				}
+				edge_curve_parameters(i,11) = topology.edges[i]->parameters[9]; // radius [11]
+				edge_curve_parameters(i,12) = topology.edges[i]->parameters[10]; // minor-radius [12]
+				break;
+		}
+
 		for (int j = 0; j < topology.edges[i]->parameters.size(); ++j) {
 			edge_curve_parameters(i, j) = topology.edges[i]->parameters[j];
 		}
@@ -90,14 +189,18 @@ ImplicitPart::ImplicitPart(
 	}
 
 	// Setup Toploogy Structures
+	std::map<int, int> loop_to_face;
 	face_to_loop.resize(2, topology.face_to_loop.size());
 	for (int i = 0; i < topology.face_to_loop.size(); ++i) {
 		face_to_loop(0, i) = topology.face_to_loop[i]._parent;
 		face_to_loop(1, i) = topology.face_to_loop[i]._child;
+		loop_to_face[face_to_loop(1,i)] = face_to_loop(0,i);
 	}
 
 	loop_to_edge.resize(2, topology.loop_to_edge.size());
 	loop_to_edge_flipped.resize(topology.loop_to_edge.size());
+	face_to_edge.resize(2, topology.loop_to_edge.size());
+	face_to_edge_flipped.resize(topology.loop_to_edge.size());
 	loop_length.resize(n_loops);
 	loop_length.setZero();
 	for (int i = 0; i < topology.loop_to_edge.size(); ++i) {
@@ -107,7 +210,12 @@ ImplicitPart::ImplicitPart(
 		loop_to_edge(1, i) = edge_idx;
 		loop_to_edge_flipped[i] = (topology.loop_to_edge[i]._sense == TopoRelationSense::Negative);
 		loop_length(loop_idx) += edge_length(edge_idx);
+		face_to_edge(0,i) = loop_to_face[loop_idx];
+		face_to_edge(1,i) = edge_idx;
+		face_to_edge_flipped[i] = loop_to_edge_flipped[i];
 	}
+
+	
 
 	edge_to_vertex.resize(2, topology.edge_to_vertex.size());
 	edge_to_vertex_is_start.resize(topology.edge_to_vertex.size());
@@ -121,8 +229,11 @@ ImplicitPart::ImplicitPart(
 		// Parasolid docs indicate it can happen, not sure how though
 		// For now, just decide if it is a start vertex or not
 
-		auto s = curve_samples[edge_idx].row(0);
-		auto e = curve_samples[edge_idx].row(N_curve - 1);
+		// If the edge is flipped, we need to reverse the start and end
+		bool flipped = topology.edges[edge_idx]->_is_reversed;
+
+		auto s = curve_samples[edge_idx].row(flipped ? N_curve -1 : 0);
+		auto e = curve_samples[edge_idx].row(flipped ? 0 : N_curve - 1);
 		Eigen::Vector3d start(s(0), s(1), s(2));
 		Eigen::Vector3d end(e(0), e(1), e(2));
 		Eigen::Vector3d pos = topology.vertices[vert_idx]->position;
@@ -145,64 +256,25 @@ ImplicitPart::ImplicitPart(
 		loop_to_vertex(1, i) = topology.loop_to_vertex[i]._child;
 	}
 
-	// Find a canonical ordering of edges for each loop
-	ordered_loop_edge.resize(n_loops);
-	ordered_loop_flipped.resize(n_loops);
-	for (int i = 0; i < loop_to_edge.cols(); ++i) {
-		int loop_idx = loop_to_edge(0, i);
-		int edge_idx = loop_to_edge(1, i);
-		ordered_loop_edge[loop_idx].push_back(edge_idx);
-		ordered_loop_flipped[loop_idx].push_back(loop_to_edge_flipped[i]);
-	}
-	// Iteratively search for next-closest edge. Inefficient but accurate
-	/*
-	for (int l = 0; l < n_loops; ++l) {
-		for (int i = 0; i < ordered_loop_edge[l].size() - 1; ++i) {
-			auto curr_end = topology.edges[ordered_loop_edge[l][i]]->end;
-			int closest_start_idx = i + 1;
-			double closest_dist = (curr_end - 
-				topology.edges[ordered_loop_edge[l][closest_start_idx]]->start
-				).norm();
-			for (int j = i + 1; j < ordered_loop_edge[l].size(); ++j) {
-				auto curr_start = topology.edges[ordered_loop_edge[l][j]]->start;
-				auto dist = (curr_end - curr_start).norm();
-				if (dist < closest_dist) {
-					closest_dist = dist;
-					closest_start_idx = j;
-				}
-			}
-			// Swap i+1 and closest_start_idx
-			int temp_idx = ordered_loop_edge[l][i + 1];
-			bool temp_flipped = ordered_loop_flipped[l][i + 1];
-			ordered_loop_edge[l][i + 1] = ordered_loop_edge[l][closest_start_idx];
-			ordered_loop_flipped[l][i + 1] = ordered_loop_flipped[l][closest_start_idx];
-			ordered_loop_edge[l][closest_start_idx] = temp_idx;
-			ordered_loop_flipped[l][closest_start_idx] = temp_flipped;
-		}
-	}
-	*/
-
-	scale = 1.0;
-	translation = Eigen::RowVector3d(0.0,0.0,0.0);
-
+	
 	if (normalize && valid) {
 		// Get Scaling Transformation
 		// Translate and scale to fit in [-1,1]^3
 		Eigen::RowVector3d min_corner = bounding_box.row(0);
 		Eigen::RowVector3d max_corner = bounding_box.row(1);
 		Eigen::RowVector3d diag = max_corner - min_corner;
-		translation = - (max_corner + min_corner) / 2;
+		Eigen::RowVector3d translation = - (max_corner + min_corner) / 2;
 		double max_dim = diag.maxCoeff();
 		if (max_dim <= 0) {
 			valid = false;
 			return;
 		}
-		scale = 2 / diag.maxCoeff();
+		double scale = 2 / diag.maxCoeff();
 		ApplyTransform(translation, scale);
 	}
 }
 
-void ImplicitPart::ApplyTransform(
+void HybridPart::ApplyTransform(
 	const Eigen::RowVector3d& translation, 
 	const double scale
 )
@@ -212,17 +284,17 @@ void ImplicitPart::ApplyTransform(
 
 	// Apply to surface parameters
 	// cols 0-2 translate and scale (origin x,y,z)
-	// col 9 just scales (radius where applicable) !!!! -- BUG -- not currently being scaled!
+	// col 9 just scales (radius where applicable)
 	// col 10 just scales, but only for torus (2nd radius)
 
 	face_surface_parameters.block(0, 0, n_faces, 3).rowwise() += translation;
 	face_surface_parameters.block(0, 0, n_faces, 3) *= scale;
-	//face_surface_parameters.block(0, 9, n_faces, 1) *= scale;
+	face_surface_parameters.block(0, 9, n_faces, 1) *= scale;
 	for (int i = 0; i < n_faces; ++i) {
 		if (face_surfaces[i] == SurfaceFunction::TORUS) {
 			face_surface_parameters(i, 10) *= scale;
 		}
-	}	
+	}
 
 
 	// Apply to edge parameters

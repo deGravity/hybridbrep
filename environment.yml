@@ -32,4 +32,4 @@ dependencies:
   - pip:
     - pyrender
     - chamferdist
-    - git+https://github.com/degravity/automate.git@v1.0.1
+    - git+https://github.com/degravity/automate.git@v1.0.2

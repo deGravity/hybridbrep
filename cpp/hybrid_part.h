@@ -58,6 +58,12 @@ struct HybridPart {
 	Eigen::RowVector3d translation;
 	double scale;
 
+	Eigen::MatrixXd V;
+	Eigen::MatrixXi F;
+	Eigen::VectorXi FtoT;
+	Eigen::MatrixXi EtoT;
+	Eigen::VectorXi VtoT;
+
 	bool valid;
 };
 

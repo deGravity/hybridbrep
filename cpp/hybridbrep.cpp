@@ -72,5 +72,10 @@ PYBIND11_MODULE(hybridbrep_cpp, m) {
 		.def_readwrite("curve_samples", &HybridPart::curve_samples)
 		.def_readwrite("valid", &HybridPart::valid)
 		.def_readwrite("scale", &HybridPart::scale)
-		.def_readwrite("translation", &HybridPart::translation);
+		.def_readwrite("translation", &HybridPart::translation)
+		.def_readwrite("V", &HybridPart::V)
+		.def_readwrite("F", &HybridPart::F)
+		.def_readwrite("FtoT", &HybridPart::FtoT)
+		.def_readwrite("EtoT", &HybridPart::EtoT)
+		.def_readwrite("VtoT", &HybridPart::VtoT);
 }

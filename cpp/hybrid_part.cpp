@@ -4,6 +4,8 @@
 
 namespace pspy {
 
+	const double SURF_ERROR_FRAC = 0.004;
+
 HybridPart::HybridPart(
 	const std::string& path, 
 	const int N,
@@ -23,6 +25,11 @@ HybridPart::HybridPart(
 	bounding_box = body.GetBoundingBox();
 
 	auto topology = body.GetTopology();
+
+	auto max_dim = (bounding_box.row(1) - bounding_box.row(0)).maxCoeff();
+	double max_surf_error = max_dim * SURF_ERROR_FRAC;
+
+	body.Tesselate(V, F, FtoT, EtoT, VtoT, true, max_surf_error);
 
 	const int n_faces = topology.faces.size();
 	const int n_edges = topology.edges.size();
@@ -256,21 +263,22 @@ HybridPart::HybridPart(
 		loop_to_vertex(1, i) = topology.loop_to_vertex[i]._child;
 	}
 
-	
+	translation = Eigen::RowVector3d(0.0, 0.0, 0.0);
+	scale = 1.0;
 	if (normalize && valid) {
 		// Get Scaling Transformation
 		// Translate and scale to fit in [-1,1]^3
 		Eigen::RowVector3d min_corner = bounding_box.row(0);
 		Eigen::RowVector3d max_corner = bounding_box.row(1);
 		Eigen::RowVector3d diag = max_corner - min_corner;
-		Eigen::RowVector3d translation = - (max_corner + min_corner) / 2;
+		Eigen::RowVector3d loc_translation = - (max_corner + min_corner) / 2;
 		double max_dim = diag.maxCoeff();
 		if (max_dim <= 0) {
 			valid = false;
 			return;
 		}
-		double scale = 2 / diag.maxCoeff();
-		ApplyTransform(translation, scale);
+		double loc_scale = 2 / diag.maxCoeff();
+		ApplyTransform(loc_translation, loc_scale);
 	}
 }
 
@@ -279,31 +287,34 @@ void HybridPart::ApplyTransform(
 	const double scale
 )
 {
+	this->translation += translation;
+	this->scale *= scale;
+
 	const int n_faces = face_surfaces.size();
 	const int n_edges = edge_curves.size();
 
+	// Transform Mesh
+	V.rowwise() += translation;
+	V *= scale;
+
 	// Apply to surface parameters
-	// cols 0-2 translate and scale (origin x,y,z)
-	// col 9 just scales (radius where applicable)
-	// col 10 just scales, but only for torus (2nd radius)
+	// [origin] [normal] [axis] [ref_dir] [radius] [minor_radius] [semi-angle]
+	// [0:3]    [3:6]    [6:9]  [9:11]    [11]     [12]           [13]
+	//  t+s      ---      ---    ---       s        s              ---
 
 	face_surface_parameters.block(0, 0, n_faces, 3).rowwise() += translation;
 	face_surface_parameters.block(0, 0, n_faces, 3) *= scale;
-	face_surface_parameters.block(0, 9, n_faces, 1) *= scale;
-	for (int i = 0; i < n_faces; ++i) {
-		if (face_surfaces[i] == SurfaceFunction::TORUS) {
-			face_surface_parameters(i, 10) *= scale;
-		}
-	}
+	face_surface_parameters.block(0, 11, n_faces, 2) *= scale;
 
 
 	// Apply to edge parameters
-	// cols 0-2 translate and scale (origin x,y,z)
-	// cols 9-10 scale (radii)
+	// [origin] [direction] [axis] [x_dir] [radius] [minor radius]
+	// [0:3   ] [3:6]       [6:9]  [9:11 ] [11]     [12]
+	//  t+s      ---         ---    ---     s        s
 
 	edge_curve_parameters.block(0, 0, n_edges, 3).rowwise() += translation;
 	edge_curve_parameters.block(0, 0, n_edges, 3) *= scale;
-	edge_curve_parameters.block(0, 9, n_edges, 2) *= scale;
+	edge_curve_parameters.block(0, 11, n_edges, 2) *= scale;
 
 	// Apply to vertex positions
 	vertex_positions.rowwise() += translation;

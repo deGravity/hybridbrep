@@ -73,7 +73,7 @@ HybridPart::HybridPart(
 	for (int i = 0; i < n_faces; ++i) {
 		face_surfaces[i] = topology.faces[i]->function;
 		switch (face_surfaces[i]) {
-			case SurfaceFunction::Plane:
+			case SurfaceFunction::PLANE:
 				for (int j = 0; j < 3; ++j) {
 					face_surface_parameters(i,0+j) = topology.faces[i]->parameters[0+j]; // origin [0:3]
 					face_surface_parameters(i,3+j) = topology.faces[i]->parameters[3+j]; // normal [3:6]
@@ -82,7 +82,7 @@ HybridPart::HybridPart(
 					face_surface_parameters(i,9+j) = topology.faces[i]->parameters[6+j]; // ref_dir (x) [9:11]
 				}
 				break;
-			case SurfaceFunction::Cylinder:
+			case SurfaceFunction::CYLINDER:
 				for (int j = 0; j < 3; ++j) {
 					face_surface_parameters(i,0+j) = topology.faces[i]->parameters[0+j]; // origin [0:3]
 					face_surface_parameters(i,6+j) = topology.faces[i]->parameters[3+j]; // axis [6:9]
@@ -92,7 +92,7 @@ HybridPart::HybridPart(
 				}
 				face_surface_parameters(i,11) = topology.faces[i]->parameters[9]; // radius [11]
 				break;
-			case SurfaceFunction::Cone:
+			case SurfaceFunction::CONE:
 				for (int j = 0; j < 3; ++j) {
 					face_surface_parameters(i,0+j) = topology.faces[i]->parameters[0+j]; // origin [0:3]
 					face_surface_parameters(i,6+j) = topology.faces[i]->parameters[3+j]; // axis [6:9]
@@ -103,7 +103,7 @@ HybridPart::HybridPart(
 				face_surface_parameters(i,11) = topology.faces[i]->parameters[9]; // radius [11]
 				face_surface_parameters(i,13) = topology.faces[i]->parameters[10]; // semi-angle [13]
 				break;
-			case SurfaceFunction::Torus:
+			case SurfaceFunction::TORUS:
 				for (int j = 0; j < 3; ++j) {
 					face_surface_parameters(i,0+j) = topology.faces[i]->parameters[0+j]; // origin [0:3]
 					face_surface_parameters(i,6+j) = topology.faces[i]->parameters[3+j]; // axis [6:9]
@@ -114,7 +114,7 @@ HybridPart::HybridPart(
 				face_surface_parameters(i,11) = topology.faces[i]->parameters[9]; // radius [11]
 				face_surface_parameters(i,12) = topology.faces[i]->parameters[10]; // minor-radius [12]
 				break;
-			case SurfaceFunction::Sphere:
+			case SurfaceFunction::SPHERE:
 				for (int j = 0; j < 3; ++j) {
 					face_surface_parameters(i,0+j) = topology.faces[i]->parameters[0+j]; // origin [0:3]
 					face_surface_parameters(i,6+j) = topology.faces[i]->parameters[3+j]; // axis [6:9]
@@ -147,13 +147,13 @@ HybridPart::HybridPart(
 		edge_curves[i] = topology.edges[i]->function;
 
 		switch (edge_curves[i]) {
-			case CurveFunction::Line:
+			case CurveFunction::LINE:
 				for (int j = 0; j < 3; ++j) {
 					edge_curve_parameters(i,0+j) = topology.edges[i]->parameters[0+j]; // origin [0:3]
 					edge_curve_parameters(i,3+j) = topology.edges[i]->parameters[3+j]; // dir [3:6]
 				}
 				break;
-			case CurveFunction::Circle:
+			case CurveFunction::CIRCLE:
 				for (int j = 0; j < 3; ++j) {
 					edge_curve_parameters(i,0+j) = topology.edges[i]->parameters[0+j]; // origin [0:3]
 					edge_curve_parameters(i,6+j) = topology.edges[i]->parameters[3+j]; // axis [6:9]
@@ -163,7 +163,7 @@ HybridPart::HybridPart(
 				}
 				edge_curve_parameters(i,11) = topology.edges[i]->parameters[9]; // radius [11]
 				break;
-			case CurveFunction::Ellipse:
+			case CurveFunction::ELLIPSE:
 				for (int j = 0; j < 3; ++j) {
 					edge_curve_parameters(i,0+j) = topology.edges[i]->parameters[0+j]; // origin [0:3]
 					edge_curve_parameters(i,6+j) = topology.edges[i]->parameters[3+j]; // axis [6:9]

@@ -1,3 +1,5 @@
+from hybridbrep_cpp import ImplicitPart, HybridPart
+
 from .uvgrid import (
     UVPartDataModule, 
     UVPartDataset, 
@@ -30,7 +32,13 @@ from .implicit import (
     preprocess_file
 )
 
-from hybridbrep_cpp import ImplicitPart
+from .rendering import (
+    CameraParams,
+    RendererParams,
+    get_camera_angle,
+    render_segmented_mesh
+)
+
 
 __all__ = [
     'UVPartDataModule',
@@ -60,5 +68,10 @@ __all__ = [
     'implicit_part_to_data',
     'preprocess_implicit_part', 
     'preprocess_file',
-    'ImplicitPart'
+    'ImplicitPart',
+    'HybridPart',
+    'CameraParams',
+    'RendererParams',
+    'get_camera_angle',
+    'render_segmented_mesh'
     ]

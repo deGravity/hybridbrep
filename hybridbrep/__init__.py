@@ -39,6 +39,11 @@ from .rendering import (
     render_segmented_mesh
 )
 
+from .hybridpart import (
+    HPart,
+    HybridPredictor,
+    GeneralConvEncDec
+)
 
 __all__ = [
     'UVPartDataModule',
@@ -73,5 +78,8 @@ __all__ = [
     'CameraParams',
     'RendererParams',
     'get_camera_angle',
-    'render_segmented_mesh'
+    'render_segmented_mesh',
+    'HPart',
+    'HybridPredictor',
+    'GeneralConvEncDec'
     ]

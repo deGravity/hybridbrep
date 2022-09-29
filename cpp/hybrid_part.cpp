@@ -42,7 +42,7 @@ HybridPart::HybridPart(
 	surface_coords.resize(n_faces);
 	surface_samples.resize(n_faces);
 	for (int i = 0; i < n_faces; ++i) {
-		if (!topology.faces[i]->sample_surface(N_ref, N, surface_bounds[i], surface_coords[i], surface_samples[i])) {
+		if (!topology.faces[i]->sample_surface(N_ref, N, surface_bounds[i], surface_coords[i], surface_samples[i], true)) {
 			valid = false;
 			return;
 		}

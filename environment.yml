@@ -12,7 +12,7 @@ dependencies:
   - pyg=2.0.3
   - numpy
   - pandas
-  - pytorch-lightning
+  - pytorch-lightning<=1.7.2
   - tensorboard
   - pyarrow
   - scipy

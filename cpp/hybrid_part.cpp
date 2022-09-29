@@ -10,7 +10,8 @@ HybridPart::HybridPart(
 	const std::string& path, 
 	const int N,
 	const int N_ref,
-	const bool normalize)
+	const bool normalize,
+	double sorted_frac)
 {
 	valid = true;
 
@@ -42,7 +43,7 @@ HybridPart::HybridPart(
 	surface_coords.resize(n_faces);
 	surface_samples.resize(n_faces);
 	for (int i = 0; i < n_faces; ++i) {
-		if (!topology.faces[i]->sample_surface(N_ref, N, surface_bounds[i], surface_coords[i], surface_samples[i], true)) {
+		if (!topology.faces[i]->sample_surface(N_ref, N, surface_bounds[i], surface_coords[i], surface_samples[i], true, sorted_frac)) {
 			valid = false;
 			return;
 		}

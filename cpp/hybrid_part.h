@@ -12,7 +12,8 @@ struct HybridPart {
 		const std::string& path, 
 		const int N, 
 		const int N_ref, 
-		const bool normalize);
+		const bool normalize,
+		const double sorted_frac = 0.5);
 	void ApplyTransform(const Eigen::RowVector3d& translation, const double scale);
 
 	// Global Bounding Box

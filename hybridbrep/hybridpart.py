@@ -34,8 +34,8 @@ import numpy as np
 
 
 class HPart():
-    def __init__(self, path, n_samples=500, n_ref_samples=5000, normalize=False):
-        part = HybridPart(path, n_samples, n_ref_samples, normalize)
+    def __init__(self, path, n_samples=500, n_ref_samples=5000, normalize=False, sort_frac=0.5):
+        part = HybridPart(path, n_samples, n_ref_samples, normalize, sort_frac)
         data = HetData()
         ### Part Level Stats ###
         data.bounding_box = torch.tensor(part.bounding_box.reshape((1,2,3))).float()
@@ -48,7 +48,7 @@ class HPart():
         ### Face Encodings ###
         # One-Hot Encode Surface Types -- Non-Simple are all 0s
         face_surfaces = torch.tensor(part.face_surfaces, dtype=int)
-        face_surfaces = torch.nn.functional.one_hot(face_surfaces, max(5, face_surfaces.max())).float()
+        face_surfaces = torch.nn.functional.one_hot(face_surfaces, max(5, face_surfaces.max()+1)).float()
         face_surfaces = face_surfaces[:,:5]
         face_surface_parameters = torch.tensor(part.face_surface_parameters).float()
         face_surface_flipped = torch.tensor(part.face_surface_flipped).reshape((-1,1)).float()
@@ -58,7 +58,7 @@ class HPart():
         ### Edge Encodings ###
         # One-Hot Encode Curve Types -- Nno-Simple are all 0s
         edge_curves = torch.tensor(part.edge_curves, dtype=int)
-        edge_curves = torch.nn.functional.one_hot(edge_curves, max(3, edge_curves.max())).float()
+        edge_curves = torch.nn.functional.one_hot(edge_curves, max(3, edge_curves.max()+1)).float()
         edge_curves = edge_curves[:,:3]
         edge_curve_parameters = torch.tensor(part.edge_curve_parameters).float()
         edge_curve_flipped = torch.tensor(part.edge_curve_flipped).reshape((-1,1)).float()

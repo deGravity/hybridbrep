@@ -43,7 +43,7 @@ PYBIND11_MODULE(hybridbrep_cpp, m) {
 
 	// hybrid_part.h
 	py::class_<HybridPart>(m, "HybridPart")
-		.def(py::init<const std::string&, const int, const int, const bool>())
+		.def(py::init<const std::string&, const int, const int, const bool, const double>())
 		.def("ApplyTransform", &HybridPart::ApplyTransform)
 		.def_readwrite("bounding_box", &HybridPart::bounding_box)
 		.def_readwrite("face_surfaces", &HybridPart::face_surfaces)

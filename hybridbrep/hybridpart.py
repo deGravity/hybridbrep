@@ -33,6 +33,11 @@ import torch
 import numpy as np
 
 
+from zipfile import ZipFile
+from sklearn.model_selection import train_test_split
+from tqdm import tqdm
+import json
+
 class HPart():
     def __init__(self, path, n_samples=500, n_ref_samples=5000, normalize=False, sort_frac=0.5):
         part = HybridPart(path, n_samples, n_ref_samples, normalize, sort_frac)
@@ -48,7 +53,9 @@ class HPart():
         ### Face Encodings ###
         # One-Hot Encode Surface Types -- Non-Simple are all 0s
         face_surfaces = torch.tensor(part.face_surfaces, dtype=int)
-        face_surfaces = torch.nn.functional.one_hot(face_surfaces, max(5, face_surfaces.max()+1)).float()
+        n_surface_types = face_surfaces.max()+1 if len(face_surfaces) > 0 else 1
+        n_surface_types = max(5, n_surface_types)
+        face_surfaces = torch.nn.functional.one_hot(face_surfaces, n_surface_types).float()
         face_surfaces = face_surfaces[:,:5]
         face_surface_parameters = torch.tensor(part.face_surface_parameters).float()
         face_surface_flipped = torch.tensor(part.face_surface_flipped).reshape((-1,1)).float()
@@ -58,7 +65,9 @@ class HPart():
         ### Edge Encodings ###
         # One-Hot Encode Curve Types -- Nno-Simple are all 0s
         edge_curves = torch.tensor(part.edge_curves, dtype=int)
-        edge_curves = torch.nn.functional.one_hot(edge_curves, max(3, edge_curves.max()+1)).float()
+        n_curve_types = edge_curves.max()+1 if len(edge_curves) > 0 else 1
+        n_curve_types = max(3, n_curve_types)
+        edge_curves = torch.nn.functional.one_hot(edge_curves, n_curve_types).float()
         edge_curves = edge_curves[:,:3]
         edge_curve_parameters = torch.tensor(part.edge_curve_parameters).float()
         edge_curve_flipped = torch.tensor(part.edge_curve_flipped).reshape((-1,1)).float()
@@ -71,9 +80,9 @@ class HPart():
 
         ### Relationships ###
         data.face_to_face = torch.tensor(part.face_to_face).long()
-        data.edge_to_face = torch.tensor([part.face_to_edge[1], part.face_to_edge[0]]).long()
+        data.edge_to_face = torch.tensor(part.face_to_edge[[1,0]]).long()
         data.edge_to_face_flipped = torch.tensor(part.face_to_edge_flipped).reshape((-1,1)).float()
-        data.vertex_to_edge = torch.tensor([part.edge_to_vertex[1], part.edge_to_vertex[0]]).long()
+        data.vertex_to_edge = torch.tensor(part.edge_to_vertex[[1,0]]).long()
         data.vertex_to_edge_is_start = torch.tensor(part.edge_to_vertex_is_start).reshape((-1,1)).float()
         data.__edge_sets__['face_to_face'] = ['faces', 'faces', 'edges']
         data.__edge_sets__['edge_to_face'] = ['edges', 'faces']
@@ -322,3 +331,66 @@ class GeneralConvEncDec(HybridPredictor):
     def forward(self, batch, face_coords, edge_coords=None):
         return self.enc_dec(batch, face_coords, edge_coords)
 
+
+
+
+class HybridPartDataset(torch.utils.data.Dataset):
+
+    """
+    @classmethod
+    def preprocess_dataset_parallel(cls, index_path, data_path, tmp_path, preprocessed_path, procs, **args):
+        with open(index_path, 'r') as f:
+            index = json.load(f)
+        keys = [index['template'].format(*key) for s in {'train','test', 'validate'}.intersection(index.keys()) for key in index[s]]
+        with ZipFile(data_path, 'r') as zf_data:            
+            for key in tqdm(keys, f'Preprocessing {data_path} to {preprocessed_path}'):
+                with zf_data.open(key,'r') as f_data:
+                    file_data = f_data.read().decode('utf-8')
+                data = HPart(file_data, **args).data
+                torch.save(data, f_out)
+    """
+
+    @classmethod
+    def preprocess_dataset(cls, index_path, data_path, preprocessed_path, **args):
+        with open(index_path, 'r') as f:
+            index = json.load(f)
+        keys = [index['template'].format(*key) for s in {'train','test', 'validate'}.intersection(index.keys()) for key in index[s]]
+        with ZipFile(data_path, 'r') as zf_data:
+            with ZipFile(preprocessed_path, 'w') as zf_preprocessed:
+                for key in tqdm(keys, f'Preprocessing {data_path} to {preprocessed_path}'):
+                    with zf_data.open(key,'r') as f_data:
+                        file_data = f_data.read().decode('utf-8')
+                    data = HPart(file_data, **args).data
+                    with zf_preprocessed.open(key,'w') as f_out:
+                        torch.save(data, f_out)
+                    
+        
+
+    def __init__(self, index_path, preprocessed_path, data_path=None, mode='train', val_frac=.05, seed=42, **args):
+        if not os.path.exists(preprocessed_path):
+            HybridPartDataset.preprocess_dataset(index_path, data_path, preprocessed_path, **args)
+
+        with open(index_path, 'r') as f:
+            index = json.load(f)
+
+        keys = [index['template'].format(*key) for key in index[mode]]
+
+        if mode in ['train', 'validate']:
+            train_keys, val_keys = train_test_split(keys, test_size=val_frac, random_state=seed)
+            keys = train_keys if mode=='train' else val_keys
+        
+        self.preprocessed_data = None
+        self.keys = keys
+        self.preprocessed_path = preprocessed_path
+        self.mode = mode
+
+    def __len__(self):
+        return len(self.keys)
+    
+    def __getitem__(self, idx):
+        if self.preprocessed_data is None:
+            self.preprocessed_data = ZipFile(self.preprocessed_path, 'r')
+        with self.preprocessed_data.open(self.keys[idx],'r') as f:
+            data = torch.load(f)
+        return data
+        

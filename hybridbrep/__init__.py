@@ -41,8 +41,10 @@ from .rendering import (
 
 from .hybridpart import (
     HPart,
+    HybridPartDataset,
     HybridPredictor,
-    GeneralConvEncDec
+    GeneralConvEncDec,
+    HybridPartDataset
 )
 
 __all__ = [
@@ -81,5 +83,6 @@ __all__ = [
     'render_segmented_mesh',
     'HPart',
     'HybridPredictor',
-    'GeneralConvEncDec'
+    'GeneralConvEncDec',
+    'HybridPartDataset'
     ]

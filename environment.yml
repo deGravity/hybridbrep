@@ -16,6 +16,7 @@ dependencies:
   - tensorboard
   - pyarrow
   - scipy
+  - scikit-learn
   - tqdm
   - matplotlib
   - dotmap

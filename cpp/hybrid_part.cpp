@@ -170,9 +170,6 @@ HybridPart::HybridPart(
 				break;
 		}
 
-		for (int j = 0; j < topology.edges[i]->parameters.size(); ++j) {
-			edge_curve_parameters(i, j) = topology.edges[i]->parameters[j];
-		}
 		edge_length[i] = topology.edges[i]->length;
 		edge_curve_flipped[i] = topology.edges[i]->_is_reversed;
 	}

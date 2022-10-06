@@ -168,6 +168,22 @@ class HPart():
         data.__node_sets__.add('curve_bounds')
         data.__node_sets__.add('curve_samples')
 
+        # Add Mesh Data
+        data.V = torch.tensor(part.V).float()
+        data.F = torch.tensor(part.F.T).long()
+        data.__node_sets__.add('V')
+        data.__edge_sets__['F'] = ['V','V','V']
+
+        # Add Loop Node and Topology Information
+        loop_types = torch.tensor(part.loop_types, dtype=int)
+        loop_types = torch.nn.functional.one_hot(loop_types, 10).float()
+        data.loops = loop_types
+        data.__node_sets__.add('loops')
+        data.edge_to_loop = torch.tensor(part.loop_to_edge[[1,0]]).long()
+        data.edge_to_loop_flipped = torch.tensor(part.loop_to_edge_flipped).float()
+        data.__node_sets__.add('edge_to_loop_flipped')
+        data.__edge_sets__['edge_to_loop'] = ['edges', 'loops']
+
         self.data = data
     
     def transform(self, translation, scale):
@@ -364,16 +380,27 @@ class HybridPartDataset(torch.utils.data.Dataset):
                     with zf_preprocessed.open(key,'w') as f_out:
                         torch.save(data, f_out)
                     
-        
 
-    def __init__(self, index_path, preprocessed_path, data_path=None, mode='train', val_frac=.05, seed=42, **args):
+    def is_ok(zf, key):
+        with zf.open(key,'r') as f:
+            data = torch.load(f)
+        ss_max = data.surface_samples.abs().max() if len(data.surface_samples) > 0 else 0.0
+        cs_max = data.surface_samples.abs().max() if len(data.curve_samples) > 0 else 0.0
+        return ss_max < torch.inf and cs_max < torch.inf    
+
+    def __init__(self, index_path, preprocessed_path=None, data_path=None, mode='train', val_frac=.05, seed=42, **args):
+        
         if not os.path.exists(preprocessed_path):
             HybridPartDataset.preprocess_dataset(index_path, data_path, preprocessed_path, **args)
 
         with open(index_path, 'r') as f:
             index = json.load(f)
 
-        keys = [index['template'].format(*key) for key in index[mode]]
+        split = mode
+        if mode == 'validate':
+            split = 'train'
+
+        keys = [index['template'].format(*key) for key in index[split]]
 
         if mode in ['train', 'validate']:
             train_keys, val_keys = train_test_split(keys, test_size=val_frac, random_state=seed)
@@ -383,6 +410,10 @@ class HybridPartDataset(torch.utils.data.Dataset):
         self.keys = keys
         self.preprocessed_path = preprocessed_path
         self.mode = mode
+
+        # Temporary - bad keys for f360seg preprocessed
+        bad_keys = ['s2.0.0/breps/step/23856_6be75f62_0.stp', 's2.0.0/breps/step/57096_6d459f9d_0.stp']
+        self.keys = [key for key in keys if key not in bad_keys]
 
     def __len__(self):
         return len(self.keys)

@@ -47,6 +47,13 @@ from .hybridpart import (
     HybridPartDataset
 )
 
+from .reconstruction import (
+    train_reconstruction,
+    BRepFaceAutoencoder
+)
+
+from .weighted_chamfer_distance import WeightedChamferDistance
+
 __all__ = [
     'UVPartDataModule',
     'UVPartDataset',
@@ -84,5 +91,8 @@ __all__ = [
     'HPart',
     'HybridPredictor',
     'GeneralConvEncDec',
-    'HybridPartDataset'
+    'HybridPartDataset',
+    'train_reconstruction',
+    'BRepFaceAutoencoder',
+    'WeightedChamferDistance'
     ]

@@ -457,7 +457,7 @@ def train_hybrid_encoder(
     print(f'Val Set Size = {len(ds_val)}')
     dl = tg.loader.DataLoader(ds, batch_size=batch_size, shuffle=True, num_workers=8, persistent_workers=True)
     dl_val = tg.loader.DataLoader(ds_val, batch_size=1, shuffle=False, num_workers=8, persistent_workers=True)
-    model = GeneralConvEncDec(emd_dim=embedding_size, dec_dim=hidden_size, dec_layers=layers)
+    model = GeneralConvEncDec(emb_dim=embedding_size, dec_dim=hidden_size, dec_layers=layers)
 
     callbacks = [
             pl.callbacks.ModelCheckpoint(

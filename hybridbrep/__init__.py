@@ -45,7 +45,8 @@ from .hybridpart import (
     HybridPredictor,
     GeneralConvEncDec,
     HybridPartDataset,
-    train_hybrid_encoder
+    train_hybrid_encoder,
+    train_hybrid_encoder_debug
 )
 
 from .reconstruction import (
@@ -96,5 +97,6 @@ __all__ = [
     'train_reconstruction',
     'BRepFaceAutoencoder',
     'WeightedChamferDistance',
-    'train_hybrid_encoder'
+    'train_hybrid_encoder',
+    'train_hybrid_encoder_debug'
     ]

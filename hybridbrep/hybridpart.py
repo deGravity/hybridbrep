@@ -473,3 +473,51 @@ def train_hybrid_encoder(
     logger = TensorBoardLogger(logdir,logname)
     trainer = pl.Trainer(gpus=num_gpus, max_epochs=-1, track_grad_norm=2, callbacks=callbacks, logger=logger, gradient_clip_val=0.5)
     trainer.fit(model, dl, val_dataloaders=dl_val)
+
+class DebugModel(LightningModule):
+    def __init__(self):
+        super().__init__()
+        self.lin = torch.nn.Linear(10,1)
+    def training_step(self, batch, batch_idx):
+        self.log('train_loss', 1.0)
+        return self.lin(batch.loops).sum()
+    def validation_step(self, batch, batch_idx):
+        self.log('val_loss', 1.0)
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=5e-4)
+
+
+def train_hybrid_encoder_debug(
+    index_path, 
+    preprocessed_path, 
+    logdir, 
+    logname, 
+    embedding_size=64, 
+    hidden_size=1024, 
+    layers=4, 
+    patience=8,
+    num_gpus=1,
+    batch_size=8
+):
+    ds = HybridPartDataset(index_path, preprocessed_path, mode='train')
+    print(f'Train Set size = {len(ds)}')
+    ds_val = HybridPartDataset(index_path, preprocessed_path, mode='validate')
+    print(f'Val Set Size = {len(ds_val)}')
+    dl = tg.loader.DataLoader(ds, batch_size=batch_size, shuffle=True, num_workers=8, persistent_workers=True)
+    dl_val = tg.loader.DataLoader(ds_val, batch_size=1, shuffle=False, num_workers=8, persistent_workers=True)
+    model = DebugModel() #GeneralConvEncDec(emb_dim=embedding_size, dec_dim=hidden_size, dec_layers=layers)
+
+    callbacks = [
+            pl.callbacks.ModelCheckpoint(
+                monitor='train_loss', save_top_k=1, filename="{epoch}-{train_loss:.6f}",mode="min",
+            ),
+            pl.callbacks.ModelCheckpoint(
+                monitor='val_loss', save_top_k=1, filename="{epoch}-{val_loss:.6f}",mode="min",
+            ),
+            pl.callbacks.early_stopping.EarlyStopping(
+                    monitor='val_loss', mode='min', patience=patience
+                )
+        ]
+    logger = TensorBoardLogger(logdir,logname)
+    trainer = pl.Trainer(gpus=num_gpus, max_epochs=-1, track_grad_norm=2, callbacks=callbacks, logger=logger, gradient_clip_val=0.5)
+    trainer.fit(model, dl, val_dataloaders=dl_val)

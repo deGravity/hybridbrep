@@ -183,6 +183,8 @@ class HPart():
         data.edge_to_loop_flipped = torch.tensor(part.loop_to_edge_flipped).float()
         data.__node_sets__.add('edge_to_loop_flipped')
         data.__edge_sets__['edge_to_loop'] = ['edges', 'loops']
+        data.loop_to_face = torch.tensor(part.face_to_loop[[1,0]]).long()
+        data.__edge_sets__['loop_to_face'] = ['loops', 'faces']
 
         self.data = data
     

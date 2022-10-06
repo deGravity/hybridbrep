@@ -28,7 +28,7 @@ class BRepFaceEncoder(torch.nn.Module):
         e = data.edges#torch.cat([data.edge_curves, data.edge_curve_parameters, data.edge_curve_flipped.reshape((-1,1))], dim=1)
         e = self.e_in(e)
         if self.use_loops:
-            l = self.l_in(data.loop_types.float())
+            l = self.l_in(data.loops)
         f = data.faces#torch.cat([data.face_surfaces, data.face_surface_parameters, data.face_surface_flipped.reshape((-1,1))], dim=1)
         f = self.f_in(f)
         # TODO - incorporate edge-loop data and vert-edge data

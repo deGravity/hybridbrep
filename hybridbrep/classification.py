@@ -33,7 +33,7 @@ class CodePredictor(pl.LightningModule):
         self.test_acc = Accuracy()
         
     def forward(self, data):
-        x = torch.cat([data.x,data.z],dim=1)
+        x = data.x
         for mp in self.mp:
             x = mp(x,x,data.edge_index)
         x = self.mlp(x)
@@ -145,7 +145,6 @@ def train_precoded_classifier(
     test_accuracies = []
 
     for experiment_size in tqdm(experiment_sizes):
-        test_accuracies[experiment_size] = []
         for seed in tqdm(seeds):
             exp_name = f'{logname}_{experiment_size}_{seed}'
 

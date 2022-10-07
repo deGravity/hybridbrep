@@ -58,6 +58,8 @@ from .weighted_chamfer_distance import WeightedChamferDistance
 
 from .segmentation import train_precoded_segmentation
 
+from .classification import train_precoded_classification
+
 __all__ = [
     'UVPartDataModule',
     'UVPartDataset',
@@ -101,5 +103,6 @@ __all__ = [
     'WeightedChamferDistance',
     'train_hybrid_encoder',
     'train_hybrid_encoder_debug',
-    'train_precoded_segmentation'
+    'train_precoded_segmentation',
+    'train_precoded_classification'
     ]

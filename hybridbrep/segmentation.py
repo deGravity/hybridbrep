@@ -128,7 +128,7 @@ class DictDatamodule(pl.LightningDataModule):
         return DataLoader(self.ds_test, batch_size=1, shuffle=False)
 
 
-def train_precoded_classifier(
+def train_precoded_segmentation(
     index_path,
     precoded_path,
     logdir,

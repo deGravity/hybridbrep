@@ -1,0 +1,180 @@
+import json
+import random
+
+import pandas as pd
+import pytorch_lightning as pl
+import torch
+import torch_geometric as tg
+from automate import BipartiteResMRConv, LinearBlock
+from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
+from sklearn.model_selection import train_test_split
+from torch.nn import ModuleList
+from torch.nn.functional import cross_entropy
+from torch_geometric.loader import DataLoader
+from torchmetrics import Accuracy
+from tqdm import tqdm
+
+
+class CodePredictor(pl.LightningModule):
+    def __init__(self, in_channels, out_channels, mlp_layers, mp_layers):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.mlp_layers = mlp_layers
+        self.mp_layers = mp_layers
+        
+        self.mp = ModuleList([BipartiteResMRConv(in_channels) for _ in range(mp_layers)])
+        self.mlp = LinearBlock(*([in_channels]*mlp_layers), out_channels, last_linear=True)
+        
+        self.train_acc = Accuracy()
+        self.val_acc = Accuracy()
+        self.test_acc = Accuracy()
+        
+    def forward(self, data):
+        x = torch.cat([data.x,data.z],dim=1)
+        for mp in self.mp:
+            x = mp(x,x,data.edge_index)
+        x = self.mlp(x)
+        return x
+    
+    def training_step(self, batch, batch_idx):
+        scores = self(batch)
+        preds = scores.argmax(dim=1)
+        target = batch.y.reshape(-1)
+        loss = cross_entropy(scores, target)
+        self.train_acc(preds, target)
+        batch_size = len(target)
+        self.log('train_loss',loss,on_epoch=True,on_step=True,batch_size=batch_size)
+        self.log('train_acc',self.train_acc,on_epoch=True,on_step=True,batch_size=batch_size)
+        return loss
+    
+    def validation_step(self, batch, batch_idx):
+        scores = self(batch)
+        preds = scores.argmax(dim=1)
+        target = batch.y.reshape(-1)
+        loss = cross_entropy(scores, target)
+        self.val_acc(preds, target)
+        batch_size = len(target)
+        self.log('val_loss',loss,on_epoch=True,on_step=True,batch_size=batch_size)
+        self.log('val_acc',self.val_acc,on_epoch=True,on_step=True,batch_size=batch_size)
+    
+    def test_step(self, batch, batch_idx):
+        scores = self(batch)
+        preds = scores.argmax(dim=1)
+        target = batch.y.reshape(-1)
+        loss = cross_entropy(scores, target)
+        self.test_acc(preds, target)
+        batch_size = len(target)
+        self.log('test_loss',loss,on_epoch=True,on_step=False,batch_size=batch_size)
+        self.log('test_acc',self.test_acc,on_epoch=True,on_step=False,batch_size=batch_size)
+        
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=1e-3)
+
+
+
+def create_subset(data, seed, size):
+    random.seed(seed)
+    return random.sample(data, size)
+
+class DictDataset(torch.utils.data.Dataset):
+    def __init__(self, index, data, mode='train', val_frac=.2,seed=42,undirected=True,train_size=None):
+        index
+        keyset = index['test']
+        if mode in ['train', 'validate']:
+            keyset = index['train']
+            if train_size:
+                keyset = create_subset(keyset, seed, train_size)
+            train_keys, val_keys = train_test_split(keyset, test_size=val_frac, random_state=seed)
+            keyset = train_keys if mode == 'train' else val_keys
+        self.data = {i:tg.data.Data(**data[index['template'].format(*key)]) for i,key in enumerate(keyset)}
+        if undirected:
+            for k,v in self.data.items():
+                v.edge_index = torch.cat([v.edge_index, v.edge_index[[1,0]]],dim=1)
+    def __len__(self):
+        return len(self.data)
+    def __getitem__(self, idx):
+        return self.data[idx]
+
+class DictDatamodule(pl.LightningDataModule):
+    def __init__(self, index, data, val_frac=0.2, seed=42, batch_size=32,train_size=None):
+        super().__init__()
+        self.val_frac = val_frac
+        self.seed = seed
+        self.ds_train = DictDataset(index, data, 'train', val_frac, seed, True, train_size)
+        self.ds_val = DictDataset(index, data, 'validate', val_frac, seed, True, train_size)
+        self.ds_test = DictDataset(index, data, 'test')
+        self.batch_size = batch_size
+    
+    def train_dataloader(self):
+        return DataLoader(
+            self.ds_train, 
+            batch_size=min(len(self.ds_train), self.batch_size), 
+            shuffle=True, 
+            num_workers=8, 
+            persistent_workers=True
+        )
+
+    def val_dataloader(self):
+        return DataLoader(
+            self.ds_val, 
+            batch_size=min(len(self.ds_val),self.batch_size), 
+            shuffle=False
+        )
+
+    def test_dataloader(self):
+        return DataLoader(self.ds_test, batch_size=1, shuffle=False)
+
+
+def train_precoded_classifier(
+    index_path,
+    precoded_path,
+    logdir,
+    logname,
+    output_path,
+    experiment_sizes = [10, 100, 1000, 10000, 20000, 23266], 
+    seeds = list(range(10))
+):
+    with open(index_path, 'r') as f:
+        index = json.load(f)
+    coded_set = torch.load(precoded_path)
+
+    max_epochs = 2000
+    test_accuracies = []
+
+    for experiment_size in tqdm(experiment_sizes):
+        test_accuracies[experiment_size] = []
+        for seed in tqdm(seeds):
+            exp_name = f'{logname}_{experiment_size}_{seed}'
+
+            model = CodePredictor(64, 16, 2, 2)
+
+            datamodule = DictDatamodule(
+                index,
+                coded_set,
+                train_size=experiment_size,
+                seed=seed,
+                batch_size=512
+            )
+            callbacks = [
+                EarlyStopping(monitor='val_loss', mode='min', patience=100),
+                ModelCheckpoint(monitor='val_loss', save_top_k=1, filename="{epoch}-{val_loss:.6f}",mode="min"),
+            ]
+            logger = TensorBoardLogger(logdir, exp_name)
+            trainer = pl.Trainer(max_epochs=max_epochs, logger=logger, callbacks=callbacks, gpus=1)
+            trainer.fit(model, datamodule)
+            results = trainer.test(datamodule=datamodule)
+            acc = results[0]['test_acc']
+            test_accuracies.append({
+                'experiment': logname,
+                'train_size': experiment_size,
+                'seed': seed,
+                'accuracy': acc
+            })
+    
+    accs_df = pd.DataFrame.from_records(test_accuracies)
+    accs_df.to_csv(output_path)
+            
+

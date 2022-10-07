@@ -281,7 +281,7 @@ class HybridPredictor(LightningModule):
         face_loss_xyz = torch.nn.functional.mse_loss(face_preds_xyz, s_xyz)
         face_loss_mask = ((face_preds_m - s_m)**2).mean()#torch.nn.functional.mse_loss(face_preds_m, s_m)
 
-        loss = edge_loss + face_loss_xyz + face_loss_mask
+        loss = face_loss_xyz + face_loss_mask# + edge_loss
 
         return loss, edge_loss, face_loss_xyz, face_loss_mask
 

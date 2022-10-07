@@ -56,6 +56,8 @@ from .reconstruction import (
 
 from .weighted_chamfer_distance import WeightedChamferDistance
 
+from .classification import train_precoded_classifier
+
 __all__ = [
     'UVPartDataModule',
     'UVPartDataset',
@@ -98,5 +100,6 @@ __all__ = [
     'BRepFaceAutoencoder',
     'WeightedChamferDistance',
     'train_hybrid_encoder',
-    'train_hybrid_encoder_debug'
+    'train_hybrid_encoder_debug',
+    'train_precoded_classifier'
     ]

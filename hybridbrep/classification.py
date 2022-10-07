@@ -17,6 +17,7 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.nn import global_max_pool
 from torchmetrics import Accuracy
 from tqdm import tqdm
+from math import ceil
 
 
 class CodePoolingPredictor(pl.LightningModule):
@@ -135,8 +136,7 @@ class CodedFabwaveDatamodule(pl.LightningDataModule):
         self.seed = seed
         self.ds_train = CodedFabwave(index, coded_set, seed, experiment_size, 'train')
         self.ds_val = CodedFabwave(index, coded_set, seed, experiment_size, 'validate')
-        self.ds_test = DictDataset(index, data, 'test')
-        self.batch_size = CodedFabwave(index, coded_set, seed, experiment_size, 'test')
+        self.ds_test = CodedFabwave(index, coded_set, seed, experiment_size, 'test')
     
     def train_dataloader(self):
         return DataLoader(self.ds_train, batch_size=1024)

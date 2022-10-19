@@ -36,7 +36,9 @@ from .rendering import (
     CameraParams,
     RendererParams,
     get_camera_angle,
-    render_segmented_mesh
+    render_segmented_mesh,
+    get_norm_factors,
+    grid_images
 )
 
 from .hybridpart import (
@@ -104,5 +106,7 @@ __all__ = [
     'train_hybrid_encoder',
     'train_hybrid_encoder_debug',
     'train_precoded_segmentation',
-    'train_precoded_classification'
+    'train_precoded_classification',
+    'get_norm_factors',
+    'grid_images'
     ]

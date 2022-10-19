@@ -171,8 +171,10 @@ class HPart():
         # Add Mesh Data
         data.V = torch.tensor(part.V).float()
         data.F = torch.tensor(part.F.T).long()
+        data.FtoT = torch.tensor(part.FtoT).long()
         data.__node_sets__.add('V')
         data.__edge_sets__['F'] = ['V','V','V']
+        data.__node_sets__.add('FtoT')
 
         # Add Loop Node and Topology Information
         loop_types = torch.tensor(part.loop_types, dtype=int)

@@ -6,7 +6,7 @@ import json
 from matplotlib import pyplot as plt
 from zipfile import ZipFile
 from tqdm import tqdm
-from automate import Part
+from automate import Part, PartOptions
 from rendering import render_part2, render_grid
 import pandas as pd
 from util import load_json
@@ -20,13 +20,13 @@ def plot_accuracies(frame, dataset, scale='log',base=None):
     line = alt.Chart(frame).mark_line().encode(
         x=alt.X('train_size',scale=alt.Scale(**xargs),axis=alt.Axis(title='Training Set Size')),
         y=alt.Y('mean(accuracy)', axis=alt.Axis(title='Accuracy')),
-        color=alt.Color('model',sort=['Ours','UV-Net','BRepNet'], legend=alt.Legend(title='Model'))
+        color=alt.Color('model',sort=['NewModel', 'Ours','UV-Net','BRepNet'], legend=alt.Legend(title='Model'))
     )
 
     band = alt.Chart(frame).mark_errorband(extent='ci').encode(
         x=alt.X('train_size', scale=alt.Scale(**xargs),axis=alt.Axis(title='Training Set Size')),
         y=alt.Y('accuracy', title='accuracy', axis=alt.Axis(title='Accuracy')),
-        color=alt.Color('model',sort=['Ours','UV-Net','BRepNet'], legend=alt.Legend(title='Model'))
+        color=alt.Color('model',sort=['NewModel', 'Ours','UV-Net','BRepNet'], legend=alt.Legend(title='Model'))
     )
 
     return (band + line).properties(
@@ -171,6 +171,33 @@ def render_segmentation_comparisons(
 
 from rendering import render_segmented_mesh, grid_images
 
+
+def segmentation_comparison_figure(
+    segmentation_predictions,
+    seed,
+    train_size,
+    num_to_render
+):
+    part_accs = segmentation_predictions.groupby(
+        ['dataset','model','train_size','seed','test_idx']).agg(
+            {'accuracy':'mean'}).reset_index()
+    part_accs = part_accs[(part_accs.seed == seed) & (part_accs.train_size == train_size) & (part_accs.dataset == dataset)].sort_values('test_idx')
+    part_accs_ours = part_accs[part_accs.model == 'Ours'].accuracy.values
+    part_accs_uv = part_accs[part_accs.model == 'UV-Net'].accuracy.values
+    part_accs_brep = part_accs[part_accs.model == 'BRepNet'].accuracy.values
+
+    print('Computing Nuanced Wins')
+    # Compute the total accuracy lift over baselines for each test example
+    lift = (part_accs_ours - part_accs_brep) + (part_accs_ours - part_accs_uv)
+
+    # Compute the number of faces in each test example as a complexity metric
+    complexity = segmentation_predictions[segmentation_predictions.dataset == dataset].groupby(
+        'test_idx').agg({'face_idx':'max'}).reset_index().sort_values('test_idx').face_idx.values + 1
+
+    # Sort by lift and other keys, and filter to parts with more than 25 faces, and baselines with at least 10% accuracy
+    nuanced_wins = [x[0] for x in sorted(enumerate(zip(lift,complexity, part_accs_ours, part_accs_uv, part_accs_brep)), reverse=True, key = lambda x : x[1]) 
+    if x[1][1] > 25 and x[1][3] > .1 and x[1][4] > .1]
+
 def render_segmentation_comparisons_newplotting(
     root = '../../', 
     dataset_name = 'fusion360seg', 
@@ -180,7 +207,8 @@ def render_segmentation_comparisons_newplotting(
     train_size = 100,
     num_to_render = 10, 
     render_size = 5,
-    max_labels = 8
+    max_labels = 8,
+    seg_pred_path = None
 ):
 
 
@@ -191,7 +219,15 @@ def render_segmentation_comparisons_newplotting(
     zooms_path = os.path.join(repbrep, 'datasets', f'{camera_name}_test_zooms.npy')
 
     print('Loading Segmentation Predictions')
-    segmentation_predictions = pd.read_parquet(os.path.join(repbrep, 'results', 'segmentation_predictions.parquet'))
+    if seg_pred_path is None:
+        seg_pred_path = os.path.join(repbrep, 'results', 'segmentation_predictions.parquet')
+    segmentation_predictions = pd.read_parquet(seg_pred_path)
+
+    n_classes = segmentation_predictions.label.max() + 1
+    if n_classes <= 10:
+        color_pallet = plt.get_cmap('tab10')(np.arange(n_classes))[:,:3]
+    else:
+        color_pallet = plt.get_cmap('tab20')(np.arange(n_classes))[:,:3]
 
     print('Computing Part Level Accuracies')
     # Compute Part-Level Accuracy at 100 samples from seed 0 for each model
@@ -259,21 +295,33 @@ def render_segmentation_comparisons_newplotting(
     our_ims = []
     uv_ims = []
     brep_ims = []
+    
+    all_gt_labels = np.concatenate(gt_labels)
+    all_our_labels = np.concatenate(our_preds)
+    all_uv_preds = np.concatenate(uv_preds)
+    all_brep_preds = np.concatenate(brep_preds)
+    all_labels = np.concatenate([all_gt_labels, all_our_labels, all_uv_preds, all_brep_preds])
+    all_labels = np.unique(all_labels)
+    all_label_colors = color_pallet[all_labels]
+
+    part_opts = PartOptions()
+    part_opts.set_quality = True
+    part_opts.quality = 0.001
     with ZipFile(fusion360seg_zip_path, 'r') as zf:
         for k, (test_idx, path, pose, zoom, gt, our_pred, uv_pred, brep_pred) in enumerate(tqdm(to_render, 'Rendering Parts')):
-            part = Part(zf.open(path).read().decode('utf-8'))
+            part = Part(zf.open(path).read().decode('utf-8'), part_opts)
 
             V = part.mesh.V
             F = part.mesh.F
             F_id = part.mesh_topology.face_to_topology
 
-            gt_ims.append(render_segmented_mesh(V, F, F_id, gt,camera_opt='seg'))
-            our_ims.append(render_segmented_mesh(V, F, F_id, our_pred,camera_opt='seg'))
-            uv_ims.append(render_segmented_mesh(V, F, F_id, uv_pred,camera_opt='seg'))
-            brep_ims.append(render_segmented_mesh(V, F, F_id, brep_pred,camera_opt='seg'))
+            gt_ims.append(render_segmented_mesh(V, F, F_id, color_pallet[gt],camera_opt='seg'))
+            our_ims.append(render_segmented_mesh(V, F, F_id, color_pallet[our_pred],camera_opt='seg'))
+            uv_ims.append(render_segmented_mesh(V, F, F_id, color_pallet[uv_pred],camera_opt='seg'))
+            brep_ims.append(render_segmented_mesh(V, F, F_id, color_pallet[brep_pred],camera_opt='seg'))
     
     all_ims = np.stack([np.stack(gt_ims),np.stack(our_ims),np.stack(uv_ims),np.stack(brep_ims)])
-    return grid_images(all_ims)
+    return grid_images(all_ims), all_labels, all_label_colors
 
 def render_segmentation_grid(seg_preds, data, gridspec, w=800, h=800):
     args_grid = []

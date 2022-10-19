@@ -128,6 +128,12 @@ def pallet(v):
     v = v*np.array([47,23,97])
     return (v % np.array([137,151,173])) + 50
 
+def get_norm_factors(V):
+    center = (np.min(V,axis=0) + np.max(V,axis=0))/2
+    V = V - center
+    max_coord = np.abs(V).max()
+    scale = 1 / max_coord
+    return center, scale
 
 RendererParams = namedtuple('RendererParams',['width','height'])
 
@@ -137,6 +143,8 @@ def render_segmented_mesh(
     camera_params=None,
     camera_opt=None,
     transparent_bg=True,
+    norm_center=None,
+    norm_scale=None,
     renderer=None,
     render_params=RendererParams(400,400),
     return_renderer=False
@@ -153,11 +161,15 @@ def render_segmented_mesh(
 
 
     # Normalize Part
-    center = (np.min(V,axis=0) + np.max(V,axis=0))/2
-    V = V - center
-    max_coord = np.abs(V).max()
-    scale = 1 / max_coord
-    V = V * scale
+    if norm_center is not None and norm_scale is not None:
+        V = V - norm_center
+        V = V * norm_scale
+    else:
+        center = (np.min(V,axis=0) + np.max(V,axis=0))/2
+        V = V - center
+        max_coord = np.abs(V).max()
+        scale = 1 / max_coord
+        V = V * scale
 
     # Setup Camera
     if camera_params is None:

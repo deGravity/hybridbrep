@@ -65,6 +65,10 @@ struct HybridPart {
 	Eigen::MatrixXi EtoT;
 	Eigen::VectorXi VtoT;
 
+	// Kernel-Computed Features
+	Eigen::MatrixXd F_k_feats; // surface_area, circumference, bounding_box, na_bounding_box, center_of_gravity, moment_of_inertia
+	Eigen::MatrixXd E_k_feats; // t_range, start, end, mid_point, length, bounding_box, na_bounding_box, center_of_gravity, moment_of_inertia
+
 	bool valid;
 };
 

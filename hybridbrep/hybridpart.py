@@ -39,7 +39,7 @@ from tqdm import tqdm
 import json
 
 class HPart():
-    def __init__(self, path, n_samples=500, n_ref_samples=5000, normalize=False, sort_frac=0.5):
+    def __init__(self, path, n_samples=500, n_ref_samples=5000, normalize=False, sort_frac=0.5, kernel_feats=False):
         part = HybridPart(path, n_samples, n_ref_samples, normalize, sort_frac)
         data = HetData()
         ### Part Level Stats ###
@@ -60,6 +60,8 @@ class HPart():
         face_surface_parameters = torch.tensor(part.face_surface_parameters).float()
         face_surface_flipped = torch.tensor(part.face_surface_flipped).reshape((-1,1)).float()
         data.faces = torch.cat([face_surfaces, face_surface_parameters, face_surface_flipped],dim=1).float()
+        if kernel_feats:
+            data.faces = torch.cat([data.faces, torch.tensor(part.F_k_feats).float()],dim=1)
         data.__node_sets__.add('faces')
 
         ### Edge Encodings ###
@@ -72,6 +74,8 @@ class HPart():
         edge_curve_parameters = torch.tensor(part.edge_curve_parameters).float()
         edge_curve_flipped = torch.tensor(part.edge_curve_flipped).reshape((-1,1)).float()
         data.edges = torch.cat([edge_curves, edge_curve_parameters, edge_curve_flipped],dim=1).float()
+        if kernel_feats:
+            data.edges = torch.cat([data.edges, torch.tensor(part.E_k_feats).float()],dim=1)
         data.__node_sets__.add('edges')
 
         ### Vertex Encodings ###
@@ -436,6 +440,11 @@ class HybridPartDataset(torch.utils.data.Dataset):
             self.preprocessed_data = ZipFile(self.preprocessed_path, 'r')
         with self.preprocessed_data.open(self.keys[idx],'r') as f:
             data = torch.load(f)
+        # Hack for NaNs
+        data.faces[data.faces.isnan()] = 0.0
+        data.faces[data.faces.isinf()] = 0.0
+        data.edges[data.edges.isnan()] = 0.0
+        data.edges[data.edges.isnan()] = 0.0
         return data
 
 from pytorch_lightning.loggers.tensorboard import TensorBoardLogger

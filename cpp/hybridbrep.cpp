@@ -77,5 +77,7 @@ PYBIND11_MODULE(hybridbrep_cpp, m) {
 		.def_readwrite("F", &HybridPart::F)
 		.def_readwrite("FtoT", &HybridPart::FtoT)
 		.def_readwrite("EtoT", &HybridPart::EtoT)
-		.def_readwrite("VtoT", &HybridPart::VtoT);
+		.def_readwrite("VtoT", &HybridPart::VtoT)
+		.def_readwrite("F_k_feats", &HybridPart::F_k_feats)
+		.def_readwrite("E_k_feats", &HybridPart::E_k_feats);
 }

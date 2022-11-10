@@ -58,6 +58,95 @@ HybridPart::HybridPart(
 		}
 	}
 
+	// Get kernel features
+	// We generally do not want to use these, but we do want to see if we can get better results with them
+	// Eigen::MatrixXd F_k_feats; surface_area, circumference, bounding_box, na_bounding_box, center_of_gravity, moment_of_inertia
+	// Eigen::MatrixXd E_k_feats; t_range, start, end, mid_point, length, bounding_box, na_bounding_box, center_of_gravity, moment_of_inertia
+
+	// Transformation Properties:
+	// Scale: 0, 1, 2, 
+	F_k_feats.resize(n_faces, 26);
+	for (int i = 0; i < n_faces; ++i) {
+		// 26 wide, 36 if we use the rest of the na_bb
+		double surface_area = topology.faces[i]->surface_area; // 1 -- scales as square
+		F_k_feats(i,0) = surface_area;
+		double circumference = topology.faces[i]->circumference; // 1 -- scales
+		F_k_feats(i,1) = circumference;
+		auto bounding_box = topology.faces[i]->bounding_box; // 6 (2x3) -- scales, translates
+		for (int r = 0; r < 2; ++r) {
+			for (int c = 0; c < 3; ++c) {
+				F_k_feats(i,2+(2*r+c)) = bounding_box(r,c);
+			}
+		}
+		auto na_bounding_box = topology.faces[i]->na_bounding_box; // 6 (2x3) -- scales
+		for (int r = 0; r < 2; ++r) {
+			for (int c = 0; c < 3; ++c) {
+				F_k_feats(i,8+(2*r+c)) = na_bounding_box(r,c);
+			}
+		}
+		auto na_bb_center = topology.edges[i]->na_bb_center; // ignored for now
+		auto na_bb_x = topology.edges[i]->na_bb_x; // ignored for now
+		auto na_bb_z = topology.edges[i]->na_bb_z; // ignored for now
+		auto center_of_gravity = topology.faces[i]->center_of_gravity; // 3 -- scales, translates
+		for (int j = 0; j < 3; ++j) {
+			F_k_feats(i,14+j) = center_of_gravity(j);
+		}
+		auto moment_of_inertia = topology.faces[i]->moment_of_inertia; // 9 (3x3) - relative to center of gravity, scales at 5th power
+		for (int r = 0; r < 3; ++r) {
+			for (int c = 0; c < 3; ++c) {
+				F_k_feats(i,17+(2*r+c)) = moment_of_inertia(r,c);
+			}
+		}
+	}
+
+	E_k_feats.resize(n_edges, 36);
+	for (int i = 0; i < n_edges; ++i) {
+		// 36 wide, 45 if we use the rest of the na_bb
+		auto t_start = topology.edges[i]->t_start; // 1
+		E_k_feats(0) = t_start;
+		auto t_end = topology.edges[i]->t_end; // 1
+		E_k_feats(1) = t_end;
+		auto start = topology.edges[i]->start; // 3 -- scales, translates
+		for (int j = 0; j < 3; ++j) {
+			E_k_feats(i,2+j) = start(j);
+		}
+		auto end = topology.edges[i]->end; // 3 -- scales, translates
+		for (int j = 0; j < 3; ++j) {
+			E_k_feats(i,5+j) = end(j);
+		}
+		auto mid_point = topology.edges[i]->mid_point; // 3 -- scales, translates
+		for (int j = 0; j < 3; ++j) {
+			E_k_feats(i,8+j) = mid_point(j);
+		}
+		auto length = topology.edges[i]->length; // 1 -- scales
+		E_k_feats(11) = length;
+		auto bounding_box = topology.edges[i]->bounding_box; // 6 (2x3) (min, max) -- scales, translates
+		for (int r = 0; r < 2; ++r) {
+			for (int c = 0; c < 3; ++c) {
+				E_k_feats(i,12+(2*r+c)) = bounding_box(r,c);
+			}
+		}
+		auto na_bounding_box = topology.edges[i]->na_bounding_box; // 6 (2x3) -- scales
+		for (int r = 0; r < 2; ++r) {
+			for (int c = 0; c < 3; ++c) {
+				E_k_feats(i,18+(2*r+c)) = na_bounding_box(r,c);
+			}
+		}
+		auto na_bb_center = topology.edges[i]->na_bb_center; // ignored since not used currently in automate
+		auto na_bb_box_x = topology.edges[i]->na_bb_x; // ignored since not used currenty in automate
+		auto na_bb_z = topology.edges[i]->na_bb_z; // ignored since not used currently in automate
+		auto center_of_gravity = topology.edges[i]->center_of_gravity; // 3 -- scales, translates
+		for (int j = 0; j < 3; ++j) {
+			E_k_feats(i,24+j) = center_of_gravity(j);
+		}
+		auto moment_of_inertia = topology.edges[i]->moment_of_inertia; // 9 (3x3) - relative to center of gravity -- scales at 5th power
+		for (int r = 0; r < 3; ++r) {
+			for (int c = 0; c < 3; ++c) {
+				E_k_feats(i,27+(2*r+c)) = moment_of_inertia(r,c);
+			}
+		}
+	}
+
 	// Setup Node Data
 	// Surface Data Format:
 	// [type] | [origin] [normal] [axis] [ref_dir] [radius] [minor_radius] [semi-angle]
@@ -350,6 +439,53 @@ void HybridPart::ApplyTransform(
 	// Apply to bounding box
 	bounding_box.rowwise() += translation;
 	bounding_box *= scale;
+
+	// Apply to the Kernel Features
+	// this is a tricky operation since different features scale differently
+	F_k_feats.block(0,0,n_faces,1) *= scale*scale; // surface area
+
+	F_k_feats.block(0,1,n_faces,1) *= scale; // circumference
+	
+	F_k_feats.block(0,2,n_faces,1).array() += translation(0); // bb_min_x
+	F_k_feats.block(0,3,n_faces,1).array() += translation(1); // bb_min_y
+	F_k_feats.block(0,4,n_faces,1).array() += translation(2); // bb_min_y
+	F_k_feats.block(0,5,n_faces,1).array() += translation(0); // bb_max_x
+	F_k_feats.block(0,6,n_faces,1).array() += translation(1); // bb_max_y
+	F_k_feats.block(0,7,n_faces,1).array() += translation(2); // bb_max_y
+	F_k_feats.block(0,2,n_faces,6) *= scale; // bb
+	
+	F_k_feats.block(0,8,n_faces,6) *= scale; // na_bb
+
+	F_k_feats.block(0,14,n_faces,3).rowwise() += translation; // c_of_g
+	F_k_feats.block(0,14,n_faces,3) *= scale; // c_of_g
+	F_k_feats.block(0,17,n_faces,9) *= scale*scale*scale*scale*scale; // m_o_i
+
+	E_k_feats.block(0,2,n_edges,3).rowwise() += translation; // start 
+	E_k_feats.block(0,2,n_edges,3) *= scale; // start
+
+	E_k_feats.block(0,5,n_edges,3).rowwise() += translation; // end 
+	E_k_feats.block(0,5,n_edges,3) *= scale; // end
+
+	E_k_feats.block(0,8,n_edges,3).rowwise() += translation; // mid_point 
+	E_k_feats.block(0,8,n_edges,3) *= scale; // mid_point
+
+	E_k_feats.block(0,11,n_edges,1) *= scale; // length
+
+	E_k_feats.block(0,12,n_edges,1).array() += translation(0); // bb_min_x
+	E_k_feats.block(0,13,n_edges,1).array() += translation(1); // bb_min_y
+	E_k_feats.block(0,14,n_edges,1).array() += translation(2); // bb_min_y
+	E_k_feats.block(0,15,n_edges,1).array() += translation(0); // bb_max_x
+	E_k_feats.block(0,16,n_edges,1).array() += translation(1); // bb_max_y
+	E_k_feats.block(0,17,n_edges,1).array() += translation(2); // bb_max_y
+	E_k_feats.block(0,12,n_edges,6) *= scale; // bb
+
+	E_k_feats.block(0,18,n_edges,6) *= scale; // na_bb
+
+	E_k_feats.block(0,24,n_edges,3).rowwise() += translation; // c_of_g
+	E_k_feats.block(0,24,n_edges,3) *= scale; // c_of_g
+
+	E_k_feats.block(0,27,n_edges,9) *= scale*scale*scale*scale*scale; // m_o_i
+
 }
 
 }

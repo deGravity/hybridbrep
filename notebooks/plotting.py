@@ -20,13 +20,13 @@ def plot_accuracies(frame, dataset, scale='log',base=None):
     line = alt.Chart(frame).mark_line().encode(
         x=alt.X('train_size',scale=alt.Scale(**xargs),axis=alt.Axis(title='Training Set Size')),
         y=alt.Y('mean(accuracy)', axis=alt.Axis(title='Accuracy')),
-        color=alt.Color('model',sort=['NewModel', 'Ours','UV-Net','BRepNet'], legend=alt.Legend(title='Model'))
+        color=alt.Color('model',sort=['Ours','SB-GCN', 'SB-GCN (Geo Only)', 'UV-Net','BRepNet'], legend=alt.Legend(title='Model'))
     )
 
     band = alt.Chart(frame).mark_errorband(extent='ci').encode(
         x=alt.X('train_size', scale=alt.Scale(**xargs),axis=alt.Axis(title='Training Set Size')),
         y=alt.Y('accuracy', title='accuracy', axis=alt.Axis(title='Accuracy')),
-        color=alt.Color('model',sort=['NewModel', 'Ours','UV-Net','BRepNet'], legend=alt.Legend(title='Model'))
+        color=alt.Color('model',sort=['Ours','SB-GCN', 'SB-GCN (Geo Only)', 'UV-Net','BRepNet'], legend=alt.Legend(title='Model'))
     )
 
     return (band + line).properties(
@@ -238,10 +238,11 @@ def render_segmentation_comparisons_newplotting(
     part_accs_ours = part_accs[part_accs.model == 'Ours'].accuracy.values
     part_accs_uv = part_accs[part_accs.model == 'UV-Net'].accuracy.values
     part_accs_brep = part_accs[part_accs.model == 'BRepNet'].accuracy.values
+    part_accs_sbgcn = part_accs[part_accs.model == 'SB-GCN'].accuracy.values
 
     print('Computing Nuanced Wins')
     # Compute the total accuracy lift over baselines for each test example
-    lift = (part_accs_ours - part_accs_brep) + (part_accs_ours - part_accs_uv)
+    lift = (part_accs_ours - part_accs_brep) + (part_accs_ours - part_accs_uv) + (part_accs_ours - part_accs_sbgcn)
 
     # Compute the number of faces in each test example as a complexity metric
     complexity = segmentation_predictions[segmentation_predictions.dataset == dataset].groupby(
@@ -264,12 +265,13 @@ def render_segmentation_comparisons_newplotting(
     poses_to_render = all_poses[test_indices_to_render]
     zooms_to_render = all_zooms[test_indices_to_render]
 
-
+    print(f'Rendering test indices: {test_indices_to_render}')
 
     gt_labels = []
     our_preds =[]
     uv_preds = []
     brep_preds = []
+    sbgcn_preds = []
     seg_preds = segmentation_predictions[
             (segmentation_predictions.dataset == dataset) &
             (segmentation_predictions.seed == 0) &
@@ -280,8 +282,9 @@ def render_segmentation_comparisons_newplotting(
         our_preds.append(seg_preds[(seg_preds.test_idx == i) & (seg_preds.model == 'Ours')].sort_values('face_idx').prediction.values)
         uv_preds.append(seg_preds[(seg_preds.test_idx == i) & (seg_preds.model == 'UV-Net')].sort_values('face_idx').prediction.values)
         brep_preds.append(seg_preds[(seg_preds.test_idx == i) & (seg_preds.model == 'BRepNet')].sort_values('face_idx').prediction.values)
+        sbgcn_preds.append(seg_preds[(seg_preds.test_idx == i) & (seg_preds.model == 'SB-GCN')].sort_values('face_idx').prediction.values)
 
-    to_render = list(zip(test_indices_to_render,paths_to_render,poses_to_render,zooms_to_render,gt_labels,our_preds,uv_preds,brep_preds))
+    to_render = list(zip(test_indices_to_render,paths_to_render,poses_to_render,zooms_to_render,gt_labels,our_preds,uv_preds,brep_preds,sbgcn_preds))
 
     #fig, axes = plt.subplots(
     #    num_to_render, 4, 
@@ -295,20 +298,16 @@ def render_segmentation_comparisons_newplotting(
     our_ims = []
     uv_ims = []
     brep_ims = []
+    sbgcn_ims = []
     
-    all_gt_labels = np.concatenate(gt_labels)
-    all_our_labels = np.concatenate(our_preds)
-    all_uv_preds = np.concatenate(uv_preds)
-    all_brep_preds = np.concatenate(brep_preds)
-    all_labels = np.concatenate([all_gt_labels, all_our_labels, all_uv_preds, all_brep_preds])
-    all_labels = np.unique(all_labels)
-    all_label_colors = color_pallet[all_labels]
+    all_labels = np.arange(n_classes)
+    all_label_colors = color_pallet
 
     part_opts = PartOptions()
     part_opts.set_quality = True
     part_opts.quality = 0.001
     with ZipFile(fusion360seg_zip_path, 'r') as zf:
-        for k, (test_idx, path, pose, zoom, gt, our_pred, uv_pred, brep_pred) in enumerate(tqdm(to_render, 'Rendering Parts')):
+        for k, (test_idx, path, pose, zoom, gt, our_pred, uv_pred, brep_pred, sbgcn_pred) in enumerate(tqdm(to_render, 'Rendering Parts')):
             part = Part(zf.open(path).read().decode('utf-8'), part_opts)
 
             V = part.mesh.V
@@ -319,8 +318,9 @@ def render_segmentation_comparisons_newplotting(
             our_ims.append(render_segmented_mesh(V, F, F_id, color_pallet[our_pred],camera_opt='seg'))
             uv_ims.append(render_segmented_mesh(V, F, F_id, color_pallet[uv_pred],camera_opt='seg'))
             brep_ims.append(render_segmented_mesh(V, F, F_id, color_pallet[brep_pred],camera_opt='seg'))
+            sbgcn_ims.append(render_segmented_mesh(V, F, F_id, color_pallet[sbgcn_pred],camera_opt='seg'))
     
-    all_ims = np.stack([np.stack(gt_ims),np.stack(our_ims),np.stack(uv_ims),np.stack(brep_ims)])
+    all_ims = np.stack([np.stack(gt_ims),np.stack(our_ims),np.stack(uv_ims),np.stack(brep_ims),np.stack(sbgcn_ims)])
     return grid_images(all_ims), all_labels, all_label_colors
 
 def render_segmentation_grid(seg_preds, data, gridspec, w=800, h=800):

@@ -135,7 +135,8 @@ def train_precoded_segmentation(
     logname,
     output_path,
     experiment_sizes = [10, 100, 1000, 10000, 20000, 23266], 
-    seeds = list(range(10))
+    seeds = list(range(10)),
+    mp_layers=2
 ):
     with open(index_path, 'r') as f:
         index = json.load(f)
@@ -148,7 +149,7 @@ def train_precoded_segmentation(
         for seed in tqdm(seeds):
             exp_name = f'{logname}_{experiment_size}_{seed}'
 
-            model = CodePredictor(64, 16, 2, 2)
+            model = CodePredictor(64, 16, 2, mp_layers)
 
             datamodule = DictDatamodule(
                 index,

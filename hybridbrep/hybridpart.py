@@ -441,10 +441,10 @@ class HybridPartDataset(torch.utils.data.Dataset):
         with self.preprocessed_data.open(self.keys[idx],'r') as f:
             data = torch.load(f)
         # Hack for NaNs
-        data.faces[data.faces.isnan()] = 0.0
-        data.faces[data.faces.isinf()] = 0.0
-        data.edges[data.edges.isnan()] = 0.0
-        data.edges[data.edges.isnan()] = 0.0
+        for name, tensor in data:
+            tensor[tensor.isnan()] = 0
+            tensor[tensor.isinf()] = 0
+
         return data
 
 from pytorch_lightning.loggers.tensorboard import TensorBoardLogger

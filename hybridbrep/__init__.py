@@ -56,11 +56,12 @@ from .reconstruction import (
     BRepFaceAutoencoder
 )
 
+
 from .weighted_chamfer_distance import WeightedChamferDistance
 
-from .segmentation import train_precoded_segmentation
+from .segmentation import train_precoded_segmentation, DictDatamodule, CodePredictor
 
-from .classification import train_precoded_classification
+from .classification import train_precoded_classification, CodedFabwaveDatamodule, CodePoolingPredictor
 
 __all__ = [
     'UVPartDataModule',
@@ -109,4 +110,8 @@ __all__ = [
     'train_precoded_classification',
     'get_norm_factors',
     'grid_images'
+    'DictDatamodule',
+    'CodePredictor',
+    'CodedFabwaveDatamodule',
+    'CodePoolingPredictor'
     ]

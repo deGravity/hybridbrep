@@ -248,7 +248,8 @@ def train_precoded_classification(
     logname,
     output_path,
     experiment_sizes = [.01, .05, .1, .2, .5, .75, 1.0], 
-    seeds = list(range(10))
+    seeds = list(range(10)),
+    mp_layers=0
 ):
     with open(index_path, 'r') as f:
         index = json.load(f)
@@ -261,7 +262,7 @@ def train_precoded_classification(
         for seed in tqdm(seeds):
             exp_name = f'{logname}_{experiment_size}_{seed}'
 
-            model = CodePoolingPredictor(64, 64, 26, 0)#(64, 16, 2, 2)
+            model = CodePoolingPredictor(64, 64, 26, mp_layers)#(64, 16, 2, 2)
 
             datamodule = CodedFabwaveDatamodule(index, coded_set, seed, experiment_size)
             callbacks = [

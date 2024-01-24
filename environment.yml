@@ -34,3 +34,4 @@ dependencies:
     - pyrender
     - chamferdist
     - git+https://github.com/degravity/automate.git@v1.0.5
+    - xxhash
